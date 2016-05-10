@@ -258,6 +258,40 @@ void initMag(mraa_i2c_context xm)
 	xmWriteByte(xm, INT_CTRL_REG_M, 0x09); // Enable interrupts for mag, active-low, push-pull
 }
 
+void readGyro(LSM9DS0_t* imu)
+{
+	uint8_t temp[6]; // We'll read six bytes from the gyro into temp
+	gReadBytes(imu->gyro, OUT_X_L_G, temp, 6); // Read 6 bytes, beginning at OUT_X_L_G
+	imu->gx = (temp[1] << 8) | temp[0]; // Store x-axis values into gx
+	imu->gy = (temp[3] << 8) | temp[2]; // Store y-axis values into gy
+	imu->gz = (temp[5] << 8) | temp[4]; // Store z-axis values into gz
+}
+
+void readAccel(LSM9DS0_t* imu)
+{
+	uint8_t temp[6]; // We'll read six bytes from the accelerometer into temp
+	xmReadBytes(imu->xm, OUT_X_L_A, temp, 6); // Read 6 bytes, beginning at OUT_X_L_A
+	imu->ax = (temp[1] << 8) | temp[0]; // Store x-axis values into ax
+	imu->ay = (temp[3] << 8) | temp[2]; // Store y-axis values into ay
+	imu->az = (temp[5] << 8) | temp[4]; // Store z-axis values into az
+}
+
+void readMag(LSM9DS0_t* imu)
+{
+	uint8_t temp[6]; // We'll read six bytes from the mag into temp	
+	xmReadBytes(imu->xm, OUT_X_L_M, temp, 6); // Read 6 bytes, beginning at OUT_X_L_M
+	imu->mx = (temp[1] << 8) | temp[0]; // Store x-axis values into mx
+	imu->my = (temp[3] << 8) | temp[2]; // Store y-axis values into my
+	imu->mz = (temp[5] << 8) | temp[4]; // Store z-axis values into mz
+}
+
+void readTemp(LSM9DS0_t* imu)
+{
+	uint8_t temp[2]; // We'll read two bytes from the temperature sensor into temp	
+	xmReadBytes(imu->xm, OUT_TEMP_L_XM, temp, 2); // Read 2 bytes, beginning at OUT_TEMP_L_M
+	imu->temperature =  (int16_t)temp[0] + (((int16_t)temp[1]) << 8) ; // Temperature is a 12-bit signed integer
+}
+
 void setGyroScale(LSM9DS0_t* imu, gyro_scale gScl)
 {
 	// We need to preserve the other bytes in CTRL_REG4_G. So, first read it:
@@ -401,8 +435,17 @@ uint8_t gReadByte(mraa_i2c_context gyro, uint8_t subAddress)
   return mraa_i2c_read_byte_data(gyro, subAddress);
 }
 
+void gReadBytes(mraa_i2c_context gyro, uint8_t subAddress, uint8_t* dest, uint8_t count)
+{
+	mraa_i2c_read_bytes_data(gyro, (subAddress|0x80), dest, count);
+}
 
 uint8_t xmReadByte(mraa_i2c_context xm, uint8_t subAddress)
 {
   return mraa_i2c_read_byte_data(xm, subAddress);
+}
+
+void xmReadBytes(mraa_i2c_context xm, uint8_t subAddress, uint8_t* dest, uint8_t count)
+{
+	mraa_i2c_read_bytes_data(xm, (subAddress|0x80), dest, count);
 }

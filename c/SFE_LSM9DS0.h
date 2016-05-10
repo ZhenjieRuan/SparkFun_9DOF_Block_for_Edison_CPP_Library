@@ -274,25 +274,25 @@ uint16_t begin(LSM9DS0_t* imu, gyro_scale gScl, accel_scale aScl,
 // This function will read all six gyroscope output registers.
 // The readings are stored in the class' gx, gy, and gz variables. Read
 // those _after_ calling readGyro().
-void readGyro();
+void readGyro(LSM9DS0_t* imu);
 
 // readAccel() -- Read the accelerometer output registers.
 // This function will read all six accelerometer output registers.
 // The readings are stored in the class' ax, ay, and az variables. Read
 // those _after_ calling readAccel().
-void readAccel();
+void readAccel(LSM9DS0_t* imu);
 
 // readMag() -- Read the magnetometer output registers.
 // This function will read all six magnetometer output registers.
 // The readings are stored in the class' mx, my, and mz variables. Read
 // those _after_ calling readMag().
-void readMag();
+void readMag(LSM9DS0_t* imu);
 
 // readTemp() -- Read the temperature output register.
 // This function will read two temperature output registers.
 // The combined readings are stored in the class' temperature variables. 
 // Read those _after_ calling readTemp().
-void readTemp();
+void readTemp(LSM9DS0_t* imu);
 
 // calcGyro() -- Convert from RAW signed 16-bit value to degrees per second
 // This function reads in a signed 16-bit value and returns the scaled
@@ -429,7 +429,7 @@ uint8_t gReadByte(mraa_i2c_context gyro, uint8_t subAddress);
 //	- count = The number of bytes to be read.
 // Output: No value is returned, but the `dest` array will store
 // 	the data read upon exit.
-void gReadBytes(uint8_t subAddress, uint8_t * dest, uint8_t count);
+void gReadBytes(mraa_i2c_context gyro, uint8_t subAddress, uint8_t * dest, uint8_t count);
 
 // gWriteByte() -- Write a byte to a register in the gyroscope.
 // Input:
@@ -453,7 +453,7 @@ uint8_t xmReadByte(mraa_i2c_context xm, uint8_t subAddress);
 //	- count = The number of bytes to be read.
 // Output: No value is returned, but the `dest` array will store
 // 	the data read upon exit.
-void xmReadBytes(uint8_t subAddress, uint8_t * dest, uint8_t count);
+void xmReadBytes(mraa_i2c_context xm, uint8_t subAddress, uint8_t * dest, uint8_t count);
 
 // xmWriteByte() -- Write a byte to a register in the accel/mag sensor.
 // Input:
