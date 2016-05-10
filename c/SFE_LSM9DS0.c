@@ -292,6 +292,24 @@ void readTemp(LSM9DS0_t* imu)
 	imu->temperature =  (int16_t)temp[0] + (((int16_t)temp[1]) << 8) ; // Temperature is a 12-bit signed integer
 }
 
+float calcGyro(LSM9DS0_t* imu, int16_t gyro)
+{
+	// Return the gyro raw reading times our pre-calculated DPS / (ADC tick):
+	return imu->gRes * gyro; 
+}
+
+float calcAccel(LSM9DS0_t* imu, int16_t accel)
+{
+	// Return the accel raw reading times our pre-calculated g's / (ADC tick):
+	return imu->aRes * accel;
+}
+
+float calcMag(LSM9DS0_t* imu, int16_t mag)
+{
+	// Return the mag raw reading times our pre-calculated Gs / (ADC tick):
+	return imu->mRes * mag;
+}
+
 void setGyroScale(LSM9DS0_t* imu, gyro_scale gScl)
 {
 	// We need to preserve the other bytes in CTRL_REG4_G. So, first read it:
@@ -370,6 +388,18 @@ void setAccelODR(mraa_i2c_context xm, accel_odr aRate)
 	xmWriteByte(xm, CTRL_REG1_XM, temp);
 }
 
+void setAccelABW(mraa_i2c_context xm, accel_abw abwRate)
+{
+	// We need to preserve the other bytes in CTRL_REG2_XM. So, first read it:
+	uint8_t temp = xmReadByte(xm, CTRL_REG2_XM);
+	// Then mask out the accel ABW bits:
+	temp &= 0xFF^(0x3 << 6);
+	// Then shift in our new ODR bits:
+	temp |= (abwRate << 6);
+	// And write the new register value back into CTRL_REG2_XM:
+	xmWriteByte(xm, CTRL_REG2_XM, temp);
+}
+
 void setMagODR(mraa_i2c_context xm, mag_odr mRate)
 {
 	// We need to preserve the other bytes in CTRL_REG5_XM. So, first read it:
@@ -401,7 +431,6 @@ void calcgRes(LSM9DS0_t* imu)
 	}
 }
 
-
 void calcaRes(LSM9DS0_t* imu)
 {
 	// Possible accelerometer scales (and their register bit settings) are:
@@ -418,6 +447,72 @@ void calcmRes(LSM9DS0_t* imu)
 	// to calculate Gs/(ADC tick) based on that 2-bit value:
 	imu->mRes = imu->mScale == M_SCALE_2GS ? 2.0 / 32768.0 : 
 	       (float) (imu->mScale << 2) / 32768.0;
+}
+
+bool newXData(mraa_i2c_context xm)
+{
+  const uint8_t dReadyMask = 0b00001000;
+  uint8_t statusRegVal = xmReadByte(xm, STATUS_REG_A);
+  if ((dReadyMask & statusRegVal) != 0)
+  {
+    return true;
+  }
+  return false;
+}
+
+bool newMData(mraa_i2c_context xm)
+{
+  const uint8_t dReadyMask = 0b00001000;
+  uint8_t statusRegVal = xmReadByte(xm, STATUS_REG_M);
+  if ((dReadyMask & statusRegVal) != 0)
+  {
+    return true;
+  }
+  return false;
+}
+
+bool newGData(mraa_i2c_context gyro)
+{
+  const uint8_t dReadyMask = 0b00001000;
+  uint8_t statusRegVal = gReadByte(gyro, STATUS_REG_G);
+  if ((dReadyMask & statusRegVal) != 0)
+  {
+    return true;
+  }
+  return false;
+}
+
+bool xDataOverflow(mraa_i2c_context xm)
+{
+  const uint8_t dOverflowMask = 0b10000000;
+  uint8_t statusRegVal = xmReadByte(xm, STATUS_REG_A);
+  if ((dOverflowMask & statusRegVal) != 0)
+  {
+    return true;
+  }
+  return false;
+}
+
+bool gDataOverflow(mraa_i2c_context xm)
+{
+  const uint8_t dOverflowMask = 0b10000000;
+  uint8_t statusRegVal = xmReadByte(xm, STATUS_REG_A);
+  if ((dOverflowMask & statusRegVal) != 0)
+  {
+    return true;
+  }
+  return false;
+}
+
+bool mDataOverflow(mraa_i2c_context xm)
+	{
+  const uint8_t dOverflowMask = 0b10000000;
+  uint8_t statusRegVal = xmReadByte(xm, STATUS_REG_M);
+  if ((dOverflowMask & statusRegVal) != 0)
+  {
+    return true;
+  }
+  return false;
 }
 
 void gWriteByte(mraa_i2c_context gyro, uint8_t subAddress, uint8_t data)

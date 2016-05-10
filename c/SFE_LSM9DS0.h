@@ -299,21 +299,21 @@ void readTemp(LSM9DS0_t* imu);
 // DPS. This function relies on gScale and gRes being correct.
 // Input:
 //	- gyro = A signed 16-bit raw reading from the gyroscope.
-float calcGyro(int16_t gyro);
+float calcGyro(LSM9DS0_t* imu, int16_t gyro);
 
 // calcAccel() -- Convert from RAW signed 16-bit value to gravity (g's).
 // This function reads in a signed 16-bit value and returns the scaled
 // g's. This function relies on aScale and aRes being correct.
 // Input:
 //	- accel = A signed 16-bit raw reading from the accelerometer.
-float calcAccel(int16_t accel);
+float calcAccel(LSM9DS0_t* imu, int16_t accel);
 
 // calcMag() -- Convert from RAW signed 16-bit value to Gauss (Gs)
 // This function reads in a signed 16-bit value and returns the scaled
 // Gs. This function relies on mScale and mRes being correct.
 // Input:
 //	- mag = A signed 16-bit raw reading from the magnetometer.
-float calcMag(int16_t mag);
+float calcMag(LSM9DS0_t* imu, int16_t mag);
 
 // setGyroScale() -- Set the full-scale range of the gyroscope.
 // This function can be called to set the scale of the gyroscope to 
@@ -355,7 +355,7 @@ void setAccelODR(mraa_i2c_context xm, accel_odr aRate);
 // Input:
 //	- abwRate = The desired anti-aliasing filter rate of the accel.
 //		Must be a value from the accel_abw enum (check above, there're 4).
-void setAccelABW(LSM9DS0_t* imu, accel_abw abwRate);
+void setAccelABW(mraa_i2c_context xm, accel_abw abwRate);
 
 // setMagODR() -- Set the output data rate of the magnetometer
 // Input:
@@ -368,15 +368,15 @@ void setMagODR(mraa_i2c_context xm, mag_odr mRate);
 //  applications. These functions allow you to see if new data has been
 //  logged since the last read. Note that it does NOT check for overflow
 //  conditions!!!
-bool newXData();
-bool newMData();
-bool newGData();
+bool newXData(mraa_i2c_context xm);
+bool newMData(mraa_i2c_context xm);
+bool newGData(mraa_i2c_context gyro);
 
 // If you want to know whether an overflow has occurred, there are bits for
 //  that. These functions check for those conditions.
-bool xDataOverflow();
-bool gDataOverflow();
-bool mDataOverflow();
+bool xDataOverflow(mraa_i2c_context xm);
+bool gDataOverflow(mraa_i2c_context xm);
+bool mDataOverflow(mraa_i2c_context xm);
 
 // initGyro() -- Sets up the gyroscope to begin reading.
 // This function steps through all five gyroscope control registers.
