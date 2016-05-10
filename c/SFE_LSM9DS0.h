@@ -1,6 +1,12 @@
 /******************************************************************************
 SFE_LSM9DS0.h
-SFE_LSM9DS0 Library Header File
+C port of SFE_LSM9DS0 Library Header File
+
+Zhenjie Ruan @ Boston University
+Sean Smith @ Boston University
+Zhuoqun Cheng @ Boston University
+
+Original Header File For CPP Library Author:
 Jim Lindblom @ SparkFun Electronics
 Original Creation Date: February 14, 2014 (Happy Valentines Day!)
 Modified 14 Jul 2015 by Mike Hord to add Edison support
@@ -118,11 +124,6 @@ Distributed as-is; no warranty is given.
 #define TIME_WINDOW			0x3D
 #define ACT_THS				0x3E
 #define ACT_DUR				0x3F
-
-//typedef enum bool {
-	//false,
-	//true
-//} bool;
 
 // gyro_scale defines the possible full-scale ranges of the gyroscope:
 typedef enum gyro_scale
@@ -248,7 +249,7 @@ typedef struct LSM9DS0 {
 // - gAddr = I2C address of the gyroscope.
 // - xmAddr = I2C address of the accel/mag.
 // @return: imu struct
-LSM9DS0_t* imu_setup(uint8_t gAddr, uint8_t xmAddr);
+void imu_setup(LSM9DS0_t* imu, uint8_t gAddr, uint8_t xmAddr);
 
 // begin() -- Initialize the gyro, accelerometer, and magnetometer.
 // This will set up the scale and output rate of each sensor. It'll also
@@ -328,7 +329,7 @@ void setGyroScale(LSM9DS0_t* imu, gyro_scale gScl);
 // Input:
 // 	- aScl = The desired accelerometer scale. Must be one of five possible
 //		values from the accel_scale enum.
-void setAccelScale(accel_scale aScl);
+void setAccelScale(LSM9DS0_t* imu, accel_scale aScl);
 
 // setMagScale() -- Set the full-scale range of the magnetometer.
 // This function can be called to set the scale of the magnetometer to
@@ -336,7 +337,7 @@ void setAccelScale(accel_scale aScl);
 // Input:
 // 	- mScl = The desired magnetometer scale. Must be one of four possible
 //		values from the mag_scale enum.
-void setMagScale(mag_scale mScl);
+void setMagScale(LSM9DS0_t* imu, mag_scale mScl);
 
 // setGyroODR() -- Set the output data rate and bandwidth of the gyroscope
 // Input:
@@ -348,19 +349,19 @@ void setGyroODR(mraa_i2c_context gyro, gyro_odr gRate);
 // Input:
 //	- aRate = The desired output rate of the accel.
 //		Must be a value from the accel_odr enum (check above, there're 11).
-void setAccelODR(accel_odr aRate); 	
+void setAccelODR(mraa_i2c_context xm, accel_odr aRate); 	
 
 // setAccelABW() -- Set the anti-aliasing filter rate of the accelerometer
 // Input:
 //	- abwRate = The desired anti-aliasing filter rate of the accel.
 //		Must be a value from the accel_abw enum (check above, there're 4).
-void setAccelABW(accel_abw abwRate);
+void setAccelABW(LSM9DS0_t* imu, accel_abw abwRate);
 
 // setMagODR() -- Set the output data rate of the magnetometer
 // Input:
 //	- mRate = The desired output rate of the mag.
 //		Must be a value from the mag_odr enum (check above, there're 6).
-void setMagODR(mag_odr mRate);
+void setMagODR(mraa_i2c_context xm, mag_odr mRate);
 
 // Since the Edison is not a real-time system, it's probably best to let the
 //  LSMDS0 set the pace of data collection, as sampling rate matters for some
@@ -399,7 +400,7 @@ void initGyro(mraa_i2c_context gyro);
 //		all axes enabled.
 //	- CTRL_REG2_XM = 0x00:  2g scale. 773 Hz anti-alias filter BW.
 //	- CTRL_REG3_XM = 0x04: Accel data ready signal on INT1_XM pin.
-void initAccel();
+void initAccel(mraa_i2c_context xm);
 
 // initMag() -- Sets up the magnetometer to begin reading.
 // This function steps through all magnetometer-related control registers.
@@ -410,7 +411,7 @@ void initAccel();
 //	- CTRL_REG6_XM = 0x00:  2 Gs scale.
 //	- CTRL_REG7_XM = 0x00: Continuous conversion mode. Normal HPF mode.
 //	- INT_CTRL_REG_M = 0x09: Interrupt active-high. Enable interrupts.
-void initMag();
+void initMag(mraa_i2c_context xm);
 
 // gReadByte() -- Reads a byte from a specified gyroscope register.
 // Input:

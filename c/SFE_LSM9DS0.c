@@ -1,6 +1,12 @@
 /******************************************************************************
-SFE_LSM9DS0.cpp
-SFE_LSM9DS0 Library Source File
+SFE_LSM9DS0.c
+C port of SFE_LSM9DS0 Library Source File
+
+Zhenjie Ruan @ Boston University
+Sean Smith @ Boston University
+Zhuoqun Cheng @ Boston University
+
+Original CPP Library Author:
 Jim Lindblom @ SparkFun Electronics
 Original Creation Date: February 14, 2014 (Happy Valentines Day!)
 Modified 14 Jul 2015 by Mike Hord to add Edison support
@@ -26,10 +32,8 @@ Distributed as-is; no warranty is given.
 #include "SFE_LSM9DS0.h"
 
 // Setup the imu
-LSM9DS0_t* imu_setup(uint8_t gAddr, uint8_t xmAddr)
+void imu_setup(LSM9DS0_t* imu, uint8_t gAddr, uint8_t xmAddr)
 {
-	LSM9DS0_t* imu;
-
 	imu->gx = 0;
 	imu->gy = 0;
 	imu->gz = 0;
@@ -57,8 +61,6 @@ LSM9DS0_t* imu_setup(uint8_t gAddr, uint8_t xmAddr)
 	mraa_i2c_address(imu->gyro, gAddr);
 	imu->xm = mraa_i2c_init(1);
 	mraa_i2c_address(imu->xm, xmAddr);
-
-	return imu;
 }
 
 uint16_t begin(LSM9DS0_t* imu, gyro_scale gScl, accel_scale aScl,
@@ -85,6 +87,19 @@ uint16_t begin(LSM9DS0_t* imu, gyro_scale gScl, accel_scale aScl,
 	initGyro(imu->gyro);	// This will "turn on" the gyro. Setting up interrupts, etc.
 	setGyroODR(imu->gyro, gODR); // Set the gyro output data rate and bandwidth.
 	setGyroScale(imu, imu->gScale); // Set the gyro range
+
+	// Accelerometer initialization stuff:
+	initAccel(imu->xm); // "Turn on" all axes of the accel. Set up interrupts, etc.
+	setAccelODR(imu->xm, aODR); // Set the accel data rate.
+	setAccelScale(imu, imu->aScale); // Set the accel range.
+
+	// Magnetometer initializetion stuff:
+	initMag(imu->xm); // "Turn on" all axes of the mag. Set up interrupts, etc.
+	setMagODR(imu->xm, mODR); // Set the magnetometer output data rate.
+	setMagScale(imu, imu->mScale); // Set the magnetometer's range.
+
+	// Once everything is initialized, return the WHO_AN_I registers we read:
+	return (xmTest << 8) | gTest;
 }
 
 void initGyro(mraa_i2c_context gyro)
@@ -145,6 +160,104 @@ void initGyro(mraa_i2c_context gyro)
 	
 }
 
+void initAccel(mraa_i2c_context xm)
+{
+	/* CTRL_REG0_XM (0x1F) (Default value: 0x00)
+	Bits (7-0): BOOT FIFO_EN WTM_EN 0 0 HP_CLICK HPIS1 HPIS2
+	BOOT - Reboot memory content (0: normal, 1: reboot)
+	FIFO_EN - Fifo enable (0: disable, 1: enable)
+	WTM_EN - FIFO watermark enable (0: disable, 1: enable)
+	HP_CLICK - HPF enabled for click (0: filter bypassed, 1: enabled)
+	HPIS1 - HPF enabled for interrupt generator 1 (0: bypassed, 1: enabled)
+	HPIS2 - HPF enabled for interrupt generator 2 (0: bypassed, 1 enabled)   */
+	xmWriteByte(xm, CTRL_REG0_XM, 0x00);
+	
+	/* CTRL_REG1_XM (0x20) (Default value: 0x07)
+	Bits (7-0): AODR3 AODR2 AODR1 AODR0 BDU AZEN AYEN AXEN
+	AODR[3:0] - select the acceleration data rate:
+		0000=power down, 0001=3.125Hz, 0010=6.25Hz, 0011=12.5Hz, 
+		0100=25Hz, 0101=50Hz, 0110=100Hz, 0111=200Hz, 1000=400Hz,
+		1001=800Hz, 1010=1600Hz, (remaining combinations undefined).
+	BDU - block data update for accel AND mag
+		0: Continuous update
+		1: Output registers aren't updated until MSB and LSB have been read.
+	AZEN, AYEN, and AXEN - Acceleration x/y/z-axis enabled.
+		0: Axis disabled, 1: Axis enabled									 */	
+	xmWriteByte(xm, CTRL_REG1_XM, 0x57); // 100Hz data rate, x/y/z all enabled
+	
+	//Serial.println(xmReadByte(CTRL_REG1_XM));
+	/* CTRL_REG2_XM (0x21) (Default value: 0x00)
+	Bits (7-0): ABW1 ABW0 AFS2 AFS1 AFS0 AST1 AST0 SIM
+	ABW[1:0] - Accelerometer anti-alias filter bandwidth
+		00=773Hz, 01=194Hz, 10=362Hz, 11=50Hz
+	AFS[2:0] - Accel full-scale selection
+		000=+/-2g, 001=+/-4g, 010=+/-6g, 011=+/-8g, 100=+/-16g
+	AST[1:0] - Accel self-test enable
+		00=normal (no self-test), 01=positive st, 10=negative st, 11=not allowed
+	SIM - SPI mode selection
+		0=4-wire, 1=3-wire													 */
+	xmWriteByte(xm, CTRL_REG2_XM, 0x00); // Set scale to 2g
+	
+	/* CTRL_REG3_XM is used to set interrupt generators on INT1_XM
+	Bits (7-0): P1_BOOT P1_TAP P1_INT1 P1_INT2 P1_INTM P1_DRDYA P1_DRDYM P1_EMPTY
+	*/
+	// Accelerometer data ready on INT1_XM (0x04)
+	xmWriteByte(xm, CTRL_REG3_XM, 0x04); 
+}
+
+void initMag(mraa_i2c_context xm)
+{	
+	/* CTRL_REG5_XM enables temp sensor, sets mag resolution and data rate
+	Bits (7-0): TEMP_EN M_RES1 M_RES0 M_ODR2 M_ODR1 M_ODR0 LIR2 LIR1
+	TEMP_EN - Enable temperature sensor (0=disabled, 1=enabled)
+	M_RES[1:0] - Magnetometer resolution select (0=low, 3=high)
+	M_ODR[2:0] - Magnetometer data rate select
+		000=3.125Hz, 001=6.25Hz, 010=12.5Hz, 011=25Hz, 100=50Hz, 101=100Hz
+	LIR2 - Latch interrupt request on INT2_SRC (cleared by reading INT2_SRC)
+		0=interrupt request not latched, 1=interrupt request latched
+	LIR1 - Latch interrupt request on INT1_SRC (cleared by readging INT1_SRC)
+		0=irq not latched, 1=irq latched 									 */
+	xmWriteByte(xm, CTRL_REG5_XM, 0x94); // Mag data rate - 100 Hz, enable temperature sensor
+	
+	/* CTRL_REG6_XM sets the magnetometer full-scale
+	Bits (7-0): 0 MFS1 MFS0 0 0 0 0 0
+	MFS[1:0] - Magnetic full-scale selection
+	00:+/-2Gauss, 01:+/-4Gs, 10:+/-8Gs, 11:+/-12Gs							 */
+	xmWriteByte(xm, CTRL_REG6_XM, 0x00); // Mag scale to +/- 2GS
+	
+	/* CTRL_REG7_XM sets magnetic sensor mode, low power mode, and filters
+	AHPM1 AHPM0 AFDS 0 0 MLP MD1 MD0
+	AHPM[1:0] - HPF mode selection
+		00=normal (resets reference registers), 01=reference signal for filtering, 
+		10=normal, 11=autoreset on interrupt event
+	AFDS - Filtered acceleration data selection
+		0=internal filter bypassed, 1=data from internal filter sent to FIFO
+	MLP - Magnetic data low-power mode
+		0=data rate is set by M_ODR bits in CTRL_REG5
+		1=data rate is set to 3.125Hz
+	MD[1:0] - Magnetic sensor mode selection (default 10)
+		00=continuous-conversion, 01=single-conversion, 10 and 11=power-down */
+	xmWriteByte(xm, CTRL_REG7_XM, 0x00); // Continuous conversion mode
+	
+	/* CTRL_REG4_XM is used to set interrupt generators on INT2_XM
+	Bits (7-0): P2_TAP P2_INT1 P2_INT2 P2_INTM P2_DRDYA P2_DRDYM P2_Overrun P2_WTM
+	*/
+	xmWriteByte(xm, CTRL_REG4_XM, 0x04); // Magnetometer data ready on INT2_XM (0x08)
+	
+	/* INT_CTRL_REG_M to set push-pull/open drain, and active-low/high
+	Bits[7:0] - XMIEN YMIEN ZMIEN PP_OD IEA IEL 4D MIEN
+	XMIEN, YMIEN, ZMIEN - Enable interrupt recognition on axis for mag data
+	PP_OD - Push-pull/open-drain interrupt configuration (0=push-pull, 1=od)
+	IEA - Interrupt polarity for accel and magneto
+		0=active-low, 1=active-high
+	IEL - Latch interrupt request for accel and magneto
+		0=irq not latched, 1=irq latched
+	4D - 4D enable. 4D detection is enabled when 6D bit in INT_GEN1_REG is set
+	MIEN - Enable interrupt generation for magnetic data
+		0=disable, 1=enable) */
+	xmWriteByte(xm, INT_CTRL_REG_M, 0x09); // Enable interrupts for mag, active-low, push-pull
+}
+
 void setGyroScale(LSM9DS0_t* imu, gyro_scale gScl)
 {
 	// We need to preserve the other bytes in CTRL_REG4_G. So, first read it:
@@ -163,6 +276,42 @@ void setGyroScale(LSM9DS0_t* imu, gyro_scale gScl)
 	calcgRes(imu);
 }
 
+void setAccelScale(LSM9DS0_t* imu, accel_scale aScl)
+{
+	// We need to preserve the other bytes in CTRL_REG2_XM. So, first read it:
+	uint8_t temp = xmReadByte(imu->xm, CTRL_REG2_XM);
+	// Then mask out the accel scale bits:
+	temp &= 0xFF^(0x3 << 3);
+	// Then shift in our new scale bits:
+	temp |= aScl << 3;
+	// And write the new register value back into CTRL_REG2_XM:
+	xmWriteByte(imu->xm, CTRL_REG2_XM, temp);
+	
+	// We've updated the sensor, but we also need to update our class variables
+	// First update aScale:
+	imu->aScale = aScl;
+	// Then calculate a new aRes, which relies on aScale being set correctly:
+	calcaRes();
+}
+
+void setMagScale(LSM9DS0_t* imu, mag_scale mScl)
+{
+	// We need to preserve the other bytes in CTRL_REG6_XM. So, first read it:
+	uint8_t temp = xmReadByte(imu->xm, CTRL_REG6_XM);
+	// Then mask out the mag scale bits:
+	temp &= 0xFF^(0x3 << 5);
+	// Then shift in our new scale bits:
+	temp |= mScl << 5;
+	// And write the new register value back into CTRL_REG6_XM:
+	xmWriteByte(imu->xm, CTRL_REG6_XM, temp);
+	
+	// We've updated the sensor, but we also need to update our class variables
+	// First update mScale:
+	imu->mScale = mScl;
+	// Then calculate a new mRes, which relies on mScale being set correctly:
+	calcmRes();
+}
+
 void setGyroODR(mraa_i2c_context gyro, gyro_odr gRate)
 {
 	// We need to preserve the other bytes in CTRL_REG1_G. So, first read it:
@@ -173,6 +322,30 @@ void setGyroODR(mraa_i2c_context gyro, gyro_odr gRate)
 	temp |= (gRate << 4);
 	// And write the new register value back into CTRL_REG1_G:
 	gWriteByte(gyro, CTRL_REG1_G, temp);
+}
+
+void setAccelODR(mraa_i2c_context xm, accel_odr aRate)
+{
+	// We need to preserve the other bytes in CTRL_REG1_XM. So, first read it:
+	uint8_t temp = xmReadByte(xm, CTRL_REG1_XM);
+	// Then mask out the accel ODR bits:
+	temp &= 0xFF^(0xF << 4);
+	// Then shift in our new ODR bits:
+	temp |= (aRate << 4);
+	// And write the new register value back into CTRL_REG1_XM:
+	xmWriteByte(xm, CTRL_REG1_XM, temp);
+}
+
+void setMagODR(mraa_i2c_context xm, mag_odr mRate)
+{
+	// We need to preserve the other bytes in CTRL_REG5_XM. So, first read it:
+	uint8_t temp = xmReadByte(xm, CTRL_REG5_XM);
+	// Then mask out the mag ODR bits:
+	temp &= 0xFF^(0x7 << 2);
+	// Then shift in our new ODR bits:
+	temp |= (mRate << 2);
+	// And write the new register value back into CTRL_REG5_XM:
+	xmWriteByte(xm, CTRL_REG5_XM, temp);
 }
 
 void calcgRes(LSM9DS0_t* imu)
